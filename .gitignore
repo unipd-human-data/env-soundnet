@@ -1,4 +1,29 @@
+# macOS system files
 .DS_Store
 ._.DS_Store
 **/.DS_Store
 **/._.DS_Store
+
+# Datasets and audio
+data/
+Datasets/
+*.wav
+
+# Model checkpoints and training logs
+models/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+
+# Python cache and compiled files
+__pycache__/
+*.pyc
+
+# Jupyter notebook cache
+.ipynb_checkpoints/
+
+# Virtual environments
+venv/
+env/
+
