@@ -1,4 +1,11 @@
-#SNN
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import snntorch as snn
+from snntorch import surrogate
+from snntorch import spikeplot as splt
+
+#SNN Classifier 
 class SNNClassifier(torch.nn.Module):
     def __init__(
         self,
@@ -90,7 +97,7 @@ class SNNClassifier(torch.nn.Module):
         return torch.stack(spk_rec, dim=0), torch.stack(mem_rec, dim=0)
 
 
-#SCNN
+#Convolutional SNN Classifier
 class C_SNN(torch.nn.Module):
     def __init__(
         self,
