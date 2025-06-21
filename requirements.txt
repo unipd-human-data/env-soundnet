@@ -1,18 +1,15 @@
 numpy
 pandas
 matplotlib
-seaborn
 tqdm
 
 # Audio processing
 librosa
-pydub
 scipy 
 soundfile 
 
 # Deep Learning
 torch
-torchaudio
 tensorflow
 snntorch
 
