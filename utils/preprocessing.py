@@ -9,7 +9,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 SAMPLE_RATE = 44100
 N_MELS = 128
 N_FFT = 1024
-HOP_LENGTH = 256
+HOP_LENGTH = 512
 DURATION = 5.0
 
 
