@@ -61,7 +61,7 @@ class ThresholdAdaptiveDataset(Dataset):
     for mel_idx in range(x.shape[0]):
       spike_train[:, mel_idx] = self._encode_tae(x[mel_idx])
 
-    return spike_train.to(torch.float32), y.long()
+    return spike_train, y.long()
 
   def _encode_tae(self, signal):
     if signal.dim() == 2:
