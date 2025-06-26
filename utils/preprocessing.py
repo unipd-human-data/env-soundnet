@@ -58,7 +58,7 @@ def naa_class_specific(y, sr, class_name, n_augments=4):
         time_stretch = np.random.uniform(time_range[0], time_range[1])
 
         if pitch_shift == 0 and abs(time_stretch - 1.0) < 0.01:
-        continue
+            continue
 
         y_aug = librosa.effects.pitch_shift(y, sr=sr, n_steps=pitch_shift)
         y_aug = librosa.effects.time_stretch(y_aug, rate=time_stretch)
