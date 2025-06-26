@@ -31,12 +31,14 @@ def center_crop(signal, target_len):
 
 def naa_class_specific(y, sr, class_name, n_augments=4):
     """
-    Class-specific augmentation with pitch shift, time stretch and optional time shift.
+    Class-specific augmentation with pitch shift, time stretch.
     Output is always cropped to fixed length.
     """
     target_len = int(sr * DURATION)
     augmented = []
-
+    
+    augmented.append(center_crop(y, target_len))
+    
     limits = {
         'dog': ((-4, 4), (0.95, 1.1)),
         'sea_waves': ((0, 0), (0.9, 1.2)),
@@ -49,19 +51,16 @@ def naa_class_specific(y, sr, class_name, n_augments=4):
         'crackling_fire': ((-2, 2), (0.9, 1.1)),
     }
 
-    pitch_range, time_range = limits.get(class_name, ((-2, 2), (0.9, 1.1)))  # fallback if class not found
+    pitch_range, time_range = limits.get(class_name, ((-2, 2), (0.9, 1.1))) 
 
     for _ in range(n_augments):
         pitch_shift = np.random.randint(pitch_range[0], pitch_range[1] + 1)
         time_stretch = np.random.uniform(time_range[0], time_range[1])
-        time_shift = np.random.randint(0, int(sr * 0.5))  # up to 0.5s shift
 
         y_aug = librosa.effects.pitch_shift(y, sr=sr, n_steps=pitch_shift)
         y_aug = librosa.effects.time_stretch(y_aug, rate=time_stretch)
-        y_aug = np.hstack((np.zeros(time_shift), y_aug))
 
-        y_aug = center_crop(y_aug, target_len)
-        augmented.append(y_aug)
+        augmented.append(center_crop(y_aug, target_len))
 
     return augmented
 
