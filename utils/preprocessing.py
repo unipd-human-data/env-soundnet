@@ -53,17 +53,23 @@ def naa_class_specific(y, sr, class_name, n_augments=4):
 
     pitch_range, time_range = limits.get(class_name, ((-2, 2), (0.9, 1.1))) 
 
-    for _ in range(n_augments):
+    aug_count = 0
+    while aug_count < n_augments:
         pitch_shift = np.random.randint(pitch_range[0], pitch_range[1] + 1)
         time_stretch = np.random.uniform(time_range[0], time_range[1])
 
+        # Skip if identical to original
         if pitch_shift == 0 and abs(time_stretch - 1.0) < 0.01:
             continue
 
-        y_aug = librosa.effects.pitch_shift(y, sr=sr, n_steps=pitch_shift)
-        y_aug = librosa.effects.time_stretch(y_aug, rate=time_stretch)
-
-        augmented.append(center_crop(y_aug, target_len))
+        try:
+            y_aug = librosa.effects.pitch_shift(y, sr=sr, n_steps=pitch_shift)
+            y_aug = librosa.effects.time_stretch(y_aug, rate=time_stretch)
+            y_aug = center_crop(y_aug, target_len)
+            augmented.append(y_aug)
+            aug_count += 1
+        except Exception:
+            continue
 
     return augmented
 
