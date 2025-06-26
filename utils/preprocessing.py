@@ -29,6 +29,43 @@ def center_crop(signal, target_len):
         return signal[start:start + target_len]
 
 
+def naa_class_specific(y, sr, class_name, n_augments=4):
+    """
+    Class-specific augmentation with pitch shift, time stretch and optional time shift.
+    Output is always cropped to fixed length.
+    """
+    target_len = int(sr * DURATION)
+    augmented = []
+
+    limits = {
+        'dog': ((-4, 4), (0.95, 1.1)),
+        'sea_waves': ((0, 0), (0.9, 1.2)),
+        'crying_baby': ((-3, 6), (0.8, 1.3)),
+        'sneezing': ((-4, 4), (0.9, 1.2)),
+        'helicopter': ((0, 0), (0.9, 1.2)),
+        'chainsaw': ((-4, 2), (0.9, 1.2)),
+        'rooster': ((-3, 2), (0.95, 1.1)),
+        'clock_tick': ((0, 0), (1.0, 1.0)),
+        'crackling_fire': ((-2, 2), (0.9, 1.1)),
+    }
+
+    pitch_range, time_range = limits.get(class_name, ((-2, 2), (0.9, 1.1)))  # fallback if class not found
+
+    for _ in range(n_augments):
+        pitch_shift = np.random.randint(pitch_range[0], pitch_range[1] + 1)
+        time_stretch = np.random.uniform(time_range[0], time_range[1])
+        time_shift = np.random.randint(0, int(sr * 0.5))  # up to 0.5s shift
+
+        y_aug = librosa.effects.pitch_shift(y, sr=sr, n_steps=pitch_shift)
+        y_aug = librosa.effects.time_stretch(y_aug, rate=time_stretch)
+        y_aug = np.hstack((np.zeros(time_shift), y_aug))
+
+        y_aug = center_crop(y_aug, target_len)
+        augmented.append(y_aug)
+
+    return augmented
+
+
 def naa(y, sr):
     augmented = []
     target_len = int(sr * DURATION)
@@ -62,18 +99,39 @@ def batch_logmel(X):
     return mel_list
 
 
-def preprocess_dataset(X_audio, y_labels, apply_naa=True, apply_taa=True, augmentations_per_sample=4):
+def preprocess_dataset(X_audio, y_labels,
+                       naa_mode='none',  # 'none', 'generic', or 'class_specific'
+                       augmentations_per_sample=4,
+                       label_index_to_name=None):
+    """
+    naa_mode: 
+        - 'none': no augmentation
+        - 'generic': apply standard naa()
+        - 'class_specific': apply naa_class_specific()
+    """
     X_aug, y_aug = [], []
 
-    if apply_naa:
-        for i in tqdm(range(len(X_audio)), desc="NAA"):
+    if naa_mode == 'generic':
+        for i in tqdm(range(len(X_audio)), desc="NAA - Generic"):
             augmented = naa(X_audio[i], sr=SAMPLE_RATE)
             X_aug.extend(augmented)
             y_aug.extend([y_labels[i]] * len(augmented))
-    else:
+
+    elif naa_mode == 'class_specific':
+        if label_index_to_name is None:
+            raise ValueError("label_index_to_name is required for 'class_specific' naa_mode.")
+        for i in tqdm(range(len(X_audio)), desc="NAA - Class Specific"):
+            class_name = label_index_to_name[y_labels[i]]
+            augmented = naa_class_specific(X_audio[i], sr=SAMPLE_RATE, class_name=class_name,
+                                           n_augments=augmentations_per_sample)
+            X_aug.extend(augmented)
+            y_aug.extend([y_labels[i]] * len(augmented))
+
+    else:  # 'none'
         X_aug = X_audio
         y_aug = y_labels
 
+    # log-Mel spectrogram
     X_mel = batch_logmel(X_aug)
     X_mel = [pad_to_multiple_of(m) for m in X_mel]
     X_mel_np = np.array(X_mel)
@@ -83,28 +141,6 @@ def preprocess_dataset(X_audio, y_labels, apply_naa=True, apply_taa=True, augmen
 
     y_aug = np.array(y_aug)
 
-    if apply_taa:
-        X_taa, y_taa = [], []
-        taa_gen = ImageDataGenerator(
-            width_shift_range=0.2,
-            height_shift_range=0.2,
-            zoom_range=0.25,
-            shear_range=0.3,
-            fill_mode='nearest'
-        )
-        for i in tqdm(range(len(X_mel_np)), desc="TAA"):
-            sample = np.expand_dims(X_mel_np[i], axis=0)
-            gen = taa_gen.flow(sample, batch_size=1)
-            for _ in range(augmentations_per_sample):
-                aug = next(gen)[0]
-                X_taa.append(aug)
-                y_taa.append(y_aug[i])
-        X_final = np.concatenate([X_mel_np, np.array(X_taa)], axis=0)
-        y_final = np.concatenate([y_aug, np.array(y_taa)], axis=0)
-    else:
-        X_final = X_mel_np
-        y_final = y_aug
-
-    X_final_tensor = torch.from_numpy(X_final).float()
-    y_final_tensor = torch.from_numpy(y_final).long()
+    X_final_tensor = torch.from_numpy(X_mel_np).float()
+    y_final_tensor = torch.from_numpy(y_aug).long()
     return X_final_tensor, y_final_tensor
