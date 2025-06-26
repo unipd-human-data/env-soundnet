@@ -53,23 +53,17 @@ def naa_class_specific(y, sr, class_name, n_augments=4):
 
     pitch_range, time_range = limits.get(class_name, ((-2, 2), (0.9, 1.1))) 
 
-    aug_count = 0
-    while aug_count < n_augments:
+    for _ in range(n_augments):
         pitch_shift = np.random.randint(pitch_range[0], pitch_range[1] + 1)
         time_stretch = np.random.uniform(time_range[0], time_range[1])
 
-        # Skip if identical to original
         if pitch_shift == 0 and abs(time_stretch - 1.0) < 0.01:
             continue
 
-        try:
-            y_aug = librosa.effects.pitch_shift(y, sr=sr, n_steps=pitch_shift)
-            y_aug = librosa.effects.time_stretch(y_aug, rate=time_stretch)
-            y_aug = center_crop(y_aug, target_len)
-            augmented.append(y_aug)
-            aug_count += 1
-        except Exception:
-            continue
+        y_aug = librosa.effects.pitch_shift(y, sr=sr, n_steps=pitch_shift)
+        y_aug = librosa.effects.time_stretch(y_aug, rate=time_stretch)
+
+        augmented.append(center_crop(y_aug, target_len))
 
     return augmented
 
@@ -109,7 +103,9 @@ def batch_logmel(X):
 
 def preprocess_dataset(X_audio, y_labels,
                        naa_mode='none',  # 'none', 'generic', or 'class_specific'
-                       augmentations_per_sample=4,
+                       naa_augmentations=4,
+                       taa_augmentations=2,
+                       apply_taa=False,
                        label_index_to_name=None):
     """
     naa_mode: 
@@ -131,7 +127,7 @@ def preprocess_dataset(X_audio, y_labels,
         for i in tqdm(range(len(X_audio)), desc="NAA - Class Specific"):
             class_name = label_index_to_name[y_labels[i]]
             augmented = naa_class_specific(X_audio[i], sr=SAMPLE_RATE, class_name=class_name,
-                                           n_augments=augmentations_per_sample)
+                                           n_augments=naa_augmentations)
             X_aug.extend(augmented)
             y_aug.extend([y_labels[i]] * len(augmented))
 
@@ -149,6 +145,29 @@ def preprocess_dataset(X_audio, y_labels,
 
     y_aug = np.array(y_aug)
 
-    X_final_tensor = torch.from_numpy(X_mel_np).float()
-    y_final_tensor = torch.from_numpy(y_aug).long()
+    # TAA step
+      if apply_taa:
+        X_taa, y_taa = [], []
+        taa_gen = ImageDataGenerator(
+            width_shift_range=0.2,
+            height_shift_range=0.2,
+            zoom_range=0.25,
+            shear_range=0.3,
+            fill_mode='nearest'
+        )
+        for i in tqdm(range(len(X_mel_np)), desc="TAA"):
+            sample = np.expand_dims(X_mel_np[i], axis=0)
+            gen = taa_gen.flow(sample, batch_size=1)
+            for _ in range(taa_augmentations):
+                aug = next(gen)[0]
+                X_taa.append(aug)
+                y_taa.append(y_aug[i])
+        X_final = np.concatenate([X_mel_np, np.array(X_taa)], axis=0)
+        y_final = np.concatenate([y_aug, np.array(y_taa)], axis=0)
+    else:
+        X_final = X_mel_np
+        y_final = y_aug
+
+    X_final_tensor = torch.from_numpy(X_final).float()
+    y_final_tensor = torch.from_numpy(y_final).long()
     return X_final_tensor, y_final_tensor
