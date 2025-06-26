@@ -146,7 +146,7 @@ def preprocess_dataset(X_audio, y_labels,
     y_aug = np.array(y_aug)
 
     # TAA step
-      if apply_taa:
+    if apply_taa:
         X_taa, y_taa = [], []
         taa_gen = ImageDataGenerator(
             width_shift_range=0.2,
